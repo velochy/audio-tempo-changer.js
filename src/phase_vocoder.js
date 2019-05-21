@@ -7,7 +7,10 @@
  * Copyright (c) 2015-2019 Margus Niitsoo
  */
 
-window['phase_vocoder'] = function(wsizeLog, tempo_ratio) {
+var VH = require('./vector_helper.js');
+var FFT = require('./fft.js');
+
+var PhaseVocoder = function(wsizeLog, tempo_ratio) {
 
 	// Default input values
 	if (!wsizeLog) wsizeLog = 12; // 4096 - sensible default
@@ -32,32 +35,31 @@ window['phase_vocoder'] = function(wsizeLog, tempo_ratio) {
 	max_step_len -= max_step_len % 100; // Change to a multiple of 100 as tempo is often changed in percents
 
 	//console.log("MAX STEP",max_step_len,windowSize);
-	var in_buffer = new Float32Array(windowSize + max_step_len + 5);
-	var out_buffer = new Float32Array(windowSize + max_step_len + 5);
+	var in_buffer = VH.float_array(windowSize + max_step_len + 5);
+	var out_buffer = VH.float_array(windowSize + max_step_len + 5);
 	var ana_len = max_step_len, syn_len = max_step_len;
 
 	// Hanning window
-	var win = new Float32Array(windowSize);
+	var win = VH.float_array(windowSize);
 	for(var i=0;i<windowSize;i++)
 		win[i] = 0.5 * (1 - Math.cos(2 * Math.PI * i / windowSize));
 
-	var hWS = windowSize >> 1;
-	var re1 = new Float32Array(hWS + 1), im1 = new Float32Array(hWS + 1);
-	var re2 = new Float32Array(hWS + 1), im2 = new Float32Array(hWS + 1);
-	var pre2 = new Float32Array(hWS + 1), pim2 = new Float32Array(hWS + 1);
+	var hWS = (windowSize >> 1) + 1;
+	var re1 = VH.float_array(hWS), im1 = VH.float_array(hWS);
+	var re2 = VH.float_array(hWS), im2 = VH.float_array(hWS);
+	var pre2 = VH.float_array(hWS), pim2 = VH.float_array(hWS);
 
 	var qWS = (hWS >> 1) + 1;
 	var b_npeaks = [0,0], b_peaks = [], b_in_angs = [], b_peak_adeltas = [];
-	var b_mags = [], b_adeltas = [];
+	var b_mags = [];
 	for(var i=0;i<2;i++) { // Double buffering
-		b_peaks.push(new Float32Array(qWS));
-		b_in_angs.push(new Float32Array(qWS));
-		b_peak_adeltas.push(new Float32Array(qWS));
-		b_mags.push(new Float32Array(hWS + 1));
-		b_adeltas.push(new Float32Array(hWS + 1));
+		b_peaks.push(VH.float_array(qWS));
+		b_in_angs.push(VH.float_array(qWS));
+		b_peak_adeltas.push(VH.float_array(qWS));
+		b_mags.push(VH.float_array(hWS));
 	}
 	
-	var peaks_re = new Float32Array(qWS), peaks_im = new Float32Array(qWS);
+	var peaks_re = VH.float_array(qWS), peaks_im = VH.float_array(qWS);
 
 	var f_ind = 0, prev_out_len = 0;
 	var syn_drift = 0.0, syn_drift_per_step = 0.0;
@@ -76,10 +78,8 @@ window['phase_vocoder'] = function(wsizeLog, tempo_ratio) {
 		syn_drift = 0.0; b_npeaks = [0,0];
 
 		for(var i=0;i<2;i++)
-			for(var k=0;k<hWS+1;k++) {
+			for(var k=0;k<hWS;k++)
 				b_mags[i][k] = 0.0;
-				b_adeltas[i][k] = 0.0;
-			}
 
 		for(var i=0;i<in_buffer.length;i++) in_buffer[i] = 0.0;
 		for(var i=0;i<out_buffer.length;i++) out_buffer[i] = 0.0;
@@ -98,17 +98,11 @@ window['phase_vocoder'] = function(wsizeLog, tempo_ratio) {
 		//console.log("TEMPO CHANGE",tempo_ratio,"LENS",ana_len,syn_len,"GAIN",gain_comp);
 	};
 
-	obj.resetBuffers();
-	obj.changeTempo(tempo_ratio);
+	obj['resetBuffers'](); obj['changeTempo'](tempo_ratio);
 
 	/**************************
 	* Small utility functions
 	**************************/
-
-	// Simple 'blit' emulation for JS Typed arrays
-	var blit = function(src, spos, dest, dpos, len) {
-		dest.set(src.subarray(spos,spos+len),dpos);
-	};
 	
 	// Estimate the phase at (fractional) fft bin ind
 	var interpolate_phase = function(re,im,ind) {
@@ -163,7 +157,7 @@ window['phase_vocoder'] = function(wsizeLog, tempo_ratio) {
 	var pshift_rigid = function(frame_ind,re,im,p_re,p_im,ratio) {
 		var CUR = frame_ind % 2, PREV = 1 - CUR;
 
-		var prev_mags = b_mags[PREV], prev_adeltas = b_adeltas[PREV];
+		var prev_mags = b_mags[PREV];
 
 		var prev_np = b_npeaks[PREV], prpeaks = b_peaks[PREV];
 		var prev_in_angs = b_in_angs[PREV], prev_peak_adeltas = b_peak_adeltas[PREV];
@@ -178,7 +172,6 @@ window['phase_vocoder'] = function(wsizeLog, tempo_ratio) {
 
 		// Start adjusting angles
 		var cur_in_angs = b_in_angs[CUR], cur_peak_adeltas = b_peak_adeltas[CUR];
-		var cur_adeltas = b_adeltas[CUR];
 
 		if(frame_ind == 0 || cur_np == 0) { // If first frame (or no peaks)
 
@@ -187,9 +180,6 @@ window['phase_vocoder'] = function(wsizeLog, tempo_ratio) {
 				var pci = peaks[ci];
 				prev_in_angs[ci] = prev_peak_adeltas[ci] = interpolate_phase(re,im,pci);
 			}
-
-			// And set all angle deltas to 0
-			for(var i=0;i<cur_adeltas.length;i++) cur_adeltas[i] = 0.0;
 			
 			return;
 		}
@@ -199,10 +189,7 @@ window['phase_vocoder'] = function(wsizeLog, tempo_ratio) {
     	* Also find where pmag*mag is max for next step
     	*********************************************************/
 
-		var new_peak_list = [], pi = 0;
-		var best_match = 0.0, best_delta = 0.0;
-		var best_nonmatch = 0.0, best_nm_pi = 0;
-
+		var pi = 0;
 		for(var ci=0;ci<cur_np;ci++) {
 			var pci = peaks[ci];
 
@@ -225,49 +212,10 @@ window['phase_vocoder'] = function(wsizeLog, tempo_ratio) {
 				var delta = out_angle - in_angle;
 				cur_in_angs[ci] = in_angle; cur_peak_adeltas[ci] = delta;
 				peaks_re[ci] = Math.cos(delta);	peaks_im[ci] = Math.sin(delta);
-
-				var m_goodness = prev_mags[Math.round(prpeaks[cpi])] * mags[Math.round(pci)];
-				if(m_goodness > best_match) { best_match = m_goodness; best_delta = delta; }
-			} else new_peak_list.push(ci);
-			
-			var nm_goodness = prev_mags[Math.round(pci)] * mags[Math.round(pci)];
-			if(nm_goodness > best_nonmatch) { best_nonmatch = nm_goodness; best_nm_pi = Math.round(pci); }
-		}
-
-		for(var pi=0;pi<prev_np;pi++) {
-			var ppi = Math.round(prpeaks[pi]);
-			var nm_goodness = prev_mags[ppi] * mags[ppi];
-			if(nm_goodness > best_nonmatch) { best_nonmatch = nm_goodness; best_nm_pi = ppi; }
-		}
-
-		/*****************************************************
-	    * For percussive sounds that temporarily overwhelm stable
-	    *  sine waves, best match can be with non-peaks
-	    *****************************************************/
-
-		if(best_nonmatch > best_match) {
-			var prev_out_angle = interpolate_phase(p_re,p_im,best_nm_pi);
-			var prev_in_angle = prev_out_angle - prev_adeltas[best_nm_pi];
-
-			var in_angle = interpolate_phase(re,im,best_nm_pi);
-			var out_angle = prev_out_angle + 
-					estimate_phase_change(in_angle,best_nm_pi,
-										prev_in_angle,best_nm_pi,ratio);
-			best_delta = out_angle - in_angle;
-		}
-
-	    /*********************************************************
-	    * Set all the new peaks to the same relative phase
-	    *  based on the best global match found.
-	    *********************************************************/
-
-		var bre = Math.cos(best_delta), bim = Math.sin(best_delta);
-		for(var i=0;i<new_peak_list.length;i++) {
-			var ci = new_peak_list[i];
-			cur_in_angs[ci] = interpolate_phase(re,im,peaks[ci]);
-			cur_peak_adeltas[ci] = best_delta;
-			peaks_re[ci] = bre;
-			peaks_im[ci] = bim;
+			} else { // Not matched - use the same phase as input
+				cur_in_angs[ci] = interpolate_phase(re,im,pci);
+				cur_peak_adeltas[ci] = 0; peaks_re[ci] = 1.0;	peaks_im[ci] = 0.0;				
+			}
 		}
 
 	    /********************************************************
@@ -278,19 +226,17 @@ window['phase_vocoder'] = function(wsizeLog, tempo_ratio) {
 		peaks[cur_np] = 2 * windowSize;
 		
 		var cpi = 0, cp = peaks[cpi], cnp = peaks[cpi + 1];
-		var cre = peaks_re[cpi], cim = peaks_im[cpi], cdelta = cur_peak_adeltas[cpi];
+		var cre = peaks_re[cpi], cim = peaks_im[cpi];
 
 		for(var i=1;i<re.length-1;i++) {
 			if(i >= cp && i - cp > cnp - i) {
 				++cpi; cp = peaks[cpi];	cnp = peaks[cpi + 1];
 				cre = peaks_re[cpi]; cim = peaks_im[cpi];
-				cdelta = cur_peak_adeltas[cpi];
 			}
 
 			var nre = re[i] * cre - im[i] * cim;
 			var nim = re[i] * cim + im[i] * cre;
 			re[i] = nre; im[i] = nim;
-			cur_adeltas[i] = cdelta;
 		}
 	}
 
@@ -317,7 +263,7 @@ window['phase_vocoder'] = function(wsizeLog, tempo_ratio) {
 		}
 
 		// Shift in_buffer back by 2*ana_len
-		blit(in_buffer,2*ana_len,
+		VH.blit(in_buffer,2*ana_len,
             in_buffer,0,windowSize-ana_len);
 
 		// Run the fft
@@ -333,7 +279,7 @@ window['phase_vocoder'] = function(wsizeLog, tempo_ratio) {
 		pshift_rigid(f_ind + 1,re2,im2,re1,im1,ratio2);
 
 		// Save (modified) re and im
-		pre2.set(re2,0); pim2.set(im2,0);
+		VH.blit(re2,0,pre2,0,hWS); VH.blit(im2,0,pim2,0,hWS);
 
 		// Run ifft
 		fft.repack(re1,im1,re2,im2);
@@ -341,7 +287,7 @@ window['phase_vocoder'] = function(wsizeLog, tempo_ratio) {
 
 		// Shift out_buffer back by previous out_len;
 		var oblen = out_buffer.length;
-		blit(out_buffer,prev_out_len,
+		VH.blit(out_buffer,prev_out_len,
             out_buffer,0,oblen-prev_out_len);
 		
 		// And shift in zeros at the end
@@ -364,7 +310,7 @@ window['phase_vocoder'] = function(wsizeLog, tempo_ratio) {
 		// Find allowed ceiling of a two-step sum and lower gain if needed
 		var ceiling = 1.0 / Math.floor(1.0 * windowSize / (2 * syn_len));
 		if(gc * max > ceiling) {
-			console.log("Gain overflow, lowering volume: ",ceiling / max,gc,max);
+			//console.log("Gain overflow, lowering volume: ",ceiling / max,gc,max);
 			gc = ceiling / max;
 		}
 
@@ -381,7 +327,7 @@ window['phase_vocoder'] = function(wsizeLog, tempo_ratio) {
 
 	obj['stretch_filter'] = function(single_step_per_call) {
 		var inbuffer_contains = 0, unused_in_outbuf = 0;
-		var outbuf = new Float32Array(2 * max_step_len + 5);
+		var outbuf = VH.float_array(2 * max_step_len + 5);
 
 		var tail_end_calls = Math.ceil((windowSize - ana_len) / (2 * ana_len));
 
@@ -391,12 +337,12 @@ window['phase_vocoder'] = function(wsizeLog, tempo_ratio) {
 				// It constantly slightly overfills, so samples keep building up
       			// This is used to occasionally release the steam
 				if(unused_in_outbuf >= outn) {
-					blit(outbuf,0,outp,opos,outn);
-					blit(outbuf,outn,outbuf,0,unused_in_outbuf);
+					VH.blit(outbuf,0,outp,opos,outn);
+					VH.blit(outbuf,outn,outbuf,0,unused_in_outbuf);
 					return outn;
 				}
 
-				blit(outbuf,0,outp,opos,unused_in_outbuf); // Copy full values to output
+				VH.blit(outbuf,0,outp,opos,unused_in_outbuf); // Copy full values to output
 				var oi = unused_in_outbuf;
 				
 				var left_over = 0, out_len = 0;
@@ -424,7 +370,7 @@ window['phase_vocoder'] = function(wsizeLog, tempo_ratio) {
 					left_over = oi + out_len - outn; if(left_over < 0) left_over = 0;
 
 					// Copy fully ready samples out
-			        blit(out_buffer,0,outp,opos+oi,out_len-left_over);
+			        VH.blit(out_buffer,0,outp,opos+oi,out_len-left_over);
 
 					oi += out_len;
 					
@@ -432,7 +378,7 @@ window['phase_vocoder'] = function(wsizeLog, tempo_ratio) {
 				}
 
 				// Copy left over samples to outbuf
-      			blit(out_buffer,out_len-left_over,outbuf,0,left_over);
+      			VH.blit(out_buffer,out_len-left_over,outbuf,0,left_over);
       			unused_in_outbuf = left_over;
 
 				return oi;
@@ -442,3 +388,6 @@ window['phase_vocoder'] = function(wsizeLog, tempo_ratio) {
 
 	return obj;
 };
+
+/** @export */
+module.exports = PhaseVocoder;

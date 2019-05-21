@@ -6,6 +6,8 @@
  * Copyright (c) 2015-2019 Margus Niitsoo
  */
 
+ var PhaseVocoder = require('./phase_vocoder.js');
+
 var SR = 22050;
 var wsize_log = 11;
 var tempo_ratio = 0.4;
@@ -119,7 +121,7 @@ var filler = chirpSignal(200.0,200.0,nsamples);
 //var filler = vibratoSignal(440.0,20.0,6.0,nsamples);
 
 var write_ind = 0;
-var changer = phase_vocoder(wsize_log,tempo_ratio);
+var changer = PhaseVocoder(wsize_log,tempo_ratio);
 var sfiller = (changer.stretch_filter(true))(filler);
 var outlen = nsamples / tempo_ratio;
 var res = new Float32Array(outlen);

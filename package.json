@@ -1,0 +1,41 @@
+{
+  "name": "phase-vocoder.js",
+  "version": "0.0.1",
+  "description": "Portable pure-JS implementation of a phase-vocoder for changing tempo of audio",
+  "main": "dist/PhaseVocoder.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/velochy/phase-vocoder.js"
+  },
+  "keywords": [
+    "audio",
+    "vocoder",
+    "tempo-change"
+  ],
+  "author": "Margus Niitsoo <velochy@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/velochy/phase-vocoder.js/issues"
+  },
+  "homepage": "https://github.com/velochy/phase-vocoder.js#readme",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENCE"
+  ],
+  "devDependencies": {
+    "file-loader": "^0.8.5",
+    "grunt": "^1.0.4",
+    "grunt-contrib-uglify": "^1.0.1",
+    "grunt-webpack": "^3.1.3",
+    "webpack": "^4.32.0",
+    "webpack-cli": "^3.3.2",
+    "google-closure-compiler": "^20190513.0.0",
+    "closure-webpack-plugin": "^2.0.1",
+    "webpack-dev-server": "^3.4.1"
+  },
+  "scripts": {
+    "build": "npx grunt",
+    "prepare": "npx grunt"
+  }
+}

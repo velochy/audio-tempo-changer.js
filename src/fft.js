@@ -8,6 +8,8 @@
  * Copyright (c) 2015-2019 Margus Niitsoo
  */
 
+var VH = require('./vector_helper.js');
+
 var FFT = function(logN) {
 
 	// Size of the buffer
@@ -17,8 +19,8 @@ var FFT = function(logN) {
 	var obj = {
 		m_logN : logN, m_N : m_N,
 		m_invN : 1.0 / m_N,
-		m_re : new Float32Array(m_N),
-		m_im : new Float32Array(m_N),
+		m_re : VH.float_array(m_N),
+		m_im : VH.float_array(m_N),
 		m_revTgt : new Array(m_N)
 	}
 
@@ -39,8 +41,8 @@ var FFT = function(logN) {
     // factor advances depends on the FFT stage. In many FFT
     // implementations the twiddle factors are cached.
 
-	obj.twiddleRe = new Float32Array(obj.m_logN);
-	obj.twiddleIm = new Float32Array(obj.m_logN);
+	obj.twiddleRe = VH.float_array(obj.m_logN);
+	obj.twiddleIm = VH.float_array(obj.m_logN);
 
 	var wIndexStep = 1;
 	for(var stage = 0; stage<obj.m_logN; stage++) {
@@ -169,3 +171,5 @@ var FFT = function(logN) {
 
 	return obj;
 };
+
+module.exports = FFT;
