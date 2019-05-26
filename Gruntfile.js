@@ -12,7 +12,7 @@ module.exports = function(grunt) {
 
     webpack: {
       lib: {
-        mode: 'development',
+        mode: 'production',
         entry: './src/phase_vocoder.js',
         output: {
           path: path.resolve(__dirname, './dist'),
@@ -41,12 +41,12 @@ module.exports = function(grunt) {
         }
       },
       test: {
-        mode: 'development',
+        mode: 'production',
         entry: './src/test.js',
         output: {
           path: path.resolve(__dirname, './dist'),
           filename: 'test.js',
-          libraryTarget: 'umd',//'var',
+          libraryTarget: 'var',
           library: 'test'
         },
         optimization: { minimize: false }

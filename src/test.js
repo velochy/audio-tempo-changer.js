@@ -80,10 +80,7 @@ var chirpSignal = function(from,to,nsamples) {
 	var f1 = to * 2 * Math.PI / SR;
 	var k2 = (f1 - f0) / (2.0 * nsamples);
 	return function(vec,write_ind,N) {
-		var _g = 0;
-		var _g1 = N;
-		while(_g < _g1) {
-			var i = _g++;
+		for(var i=0;i<N;i++) {
 			if(nsamples == read_ind) {
 				return i;
 			}
@@ -101,10 +98,8 @@ var vibratoSignal = function(base,amp,rate,nsamples) {
 	var famp = amp * 2 * Math.PI / SR;
 	var fr = rate * 2 * Math.PI / SR;
 	return function(vec,write_ind,N) {
-		var _g = 0;
-		var _g1 = N;
-		while(_g < _g1) {
-			var i = _g++;
+
+		for(var i=0;i<N;i++) {
 			if(nsamples == read_ind) {
 				return i;
 			}
@@ -121,7 +116,7 @@ var filler = chirpSignal(200.0,200.0,nsamples);
 //var filler = vibratoSignal(440.0,20.0,6.0,nsamples);
 
 var write_ind = 0;
-var changer = PhaseVocoder(wsize_log,tempo_ratio);
+var changer = PhaseVocoder({ sampleRate: SR, wsizeLog: wsize_log, tempo: tempo_ratio });
 var sfiller = (changer.stretch_filter(true))(filler);
 var outlen = nsamples / tempo_ratio;
 var res = new Float32Array(outlen);
