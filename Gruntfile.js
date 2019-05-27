@@ -14,6 +14,7 @@ module.exports = function(grunt) {
       lib: {
         mode: 'production',
         entry: './src/phase_vocoder.js',
+        devtool: "source-map",
         output: {
           path: path.resolve(__dirname, './dist'),
           filename: "PhaseVocoder.js",
@@ -43,6 +44,7 @@ module.exports = function(grunt) {
       test: {
         mode: 'production',
         entry: './src/test.js',
+        devtool: "source-map",
         output: {
           path: path.resolve(__dirname, './dist'),
           filename: 'test.js',

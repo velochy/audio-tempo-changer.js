@@ -7,11 +7,14 @@
  */
 
  var PhaseVocoder = require('./phase_vocoder.js');
+ var VH = require('./vector_helper.js');
 
 var SR = 22050;
 var wsize_log = 11;
-var tempo_ratio = 0.4;
-var duration = 0.5;
+var tempo_ratio = 0.5;
+var duration = 20;
+
+var BUF_SIZE = 500;
 
 // Simple wrapper around DataView for sequential writing
 var BinaryDataWriter = function(size,little_end) {
@@ -79,15 +82,14 @@ var chirpSignal = function(from,to,nsamples) {
 	var f0 = from * 2 * Math.PI / SR;
 	var f1 = to * 2 * Math.PI / SR;
 	var k2 = (f1 - f0) / (2.0 * nsamples);
-	return function(vec,write_ind,N) {
+	return function(N) {
+		if (N > nsamples-read_ind) N = Math.max(0,nsamples-read_ind);
+		var vec = VH.float_array(N);
 		for(var i=0;i<N;i++) {
-			if(nsamples == read_ind) {
-				return i;
-			}
-			vec[write_ind + i] = 0.3 * Math.sin((f0 + k2 * read_ind) * read_ind);
+			vec[i] = 0.3 * Math.sin((f0 + k2 * read_ind) * read_ind);
 			read_ind += 1;
 		}
-		return N;
+		return vec;
 	};
 };
 
@@ -97,13 +99,11 @@ var vibratoSignal = function(base,amp,rate,nsamples) {
 	var f0 = base * 2 * Math.PI / SR;
 	var famp = amp * 2 * Math.PI / SR;
 	var fr = rate * 2 * Math.PI / SR;
-	return function(vec,write_ind,N) {
-
+	return function(N) {
+		if (N > nsamples-read_ind) N = Math.max(0,nsamples-read_ind);
+		var vec = VH.float_array(N);
 		for(var i=0;i<N;i++) {
-			if(nsamples == read_ind) {
-				return i;
-			}
-			vec[write_ind + i] = 0.3 * Math.sin(phase);
+			vec[i] = 0.3 * Math.sin(phase);
 			phase += f0 + famp * Math.sin(fr * read_ind);
 			read_ind += 1;
 		}
@@ -112,18 +112,19 @@ var vibratoSignal = function(base,amp,rate,nsamples) {
 }
 
 var nsamples = duration * SR;
-var filler = chirpSignal(200.0,200.0,nsamples);
+var generator = chirpSignal(200.0,300.0,nsamples);
 //var filler = vibratoSignal(440.0,20.0,6.0,nsamples);
 
 var write_ind = 0;
-var changer = PhaseVocoder({ sampleRate: SR, wsizeLog: wsize_log, tempo: tempo_ratio });
-var sfiller = (changer.stretch_filter(true))(filler);
+var changer = PhaseVocoder({ sampleRate: SR, numChannels: 1, wsizeLog: wsize_log, tempo: tempo_ratio });
 var outlen = nsamples / tempo_ratio;
 var res = new Float32Array(outlen);
 while(true) {
-	var ns = sfiller(res,write_ind,outlen);
-	write_ind += ns;
-	if(ns == 0) break;
+	var inp = generator(BUF_SIZE);
+	if(inp.length==0) break;
+	var outp = changer.process([inp])[0];
+	VH.blit(outp,0,res,write_ind,outp.length);
+	write_ind += outp.length;
 }
 
 console.log("Writing WAV",1.0 * read_ind / write_ind);

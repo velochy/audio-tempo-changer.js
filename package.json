@@ -1,6 +1,6 @@
 {
   "name": "phase-vocoder.js",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Portable pure-JS implementation of a phase-vocoder for changing tempo of audio",
   "main": "dist/PhaseVocoder.js",
   "repository": {

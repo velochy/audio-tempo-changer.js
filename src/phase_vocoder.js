@@ -20,6 +20,7 @@
 		var sampleRate = opts.sampleRate || 44100;
 		var wsizeLog = opts.wsizeLog || 12; // 4096
 		var chosen_tempo = opts.tempo || 1.0;
+		var numChannels = opts.numChannels || 2;
 
 		/**************************
 		* Initialize variables
@@ -66,19 +67,26 @@
 		
 		var peaks_re = VH.float_array(qWS), peaks_im = VH.float_array(qWS);
 
-		var f_ind = 0, prev_out_len = 0;
-		var syn_drift = 0.0, syn_drift_per_step = 0.0;
-		var gain_comp = 1.0;
+		// Keep track of time (in samples) in both input and output streams
+		var in_time = 0.0, out_time = 0.0;
 
-		// Small utility function to calculate gain compensation
-		var compute_gain_comp = function(win,syn_len) {
-			var n = win.length / syn_len | 0, sum = 0.0;
-			for(var i=0;i<n;i++) sum += win[i * syn_len];
-			return GAIN_DEAMPLIFY / sum;
-		};
+		// Track the changes for mapOutputToInputTime
+		var changes = [{ in_time: 0.0, out_time: 0.0, tempo: chosen_tempo }];
+
+		var f_ind = 0, prev_out_len = 0, gain_comp = 1.0;
+		var syn_drift = 0.0, syn_drift_per_step = 0.0;
 
 		var obj = { };
-		obj['flush'] = function() {
+
+		// Should map time in output to time in input
+		obj['mapOutputToInputTime'] = function(given_out_time) {
+			var ci = changes.length-1;
+			while(given_out_time<changes[ci].out_time && ci>0) ci--;
+			var cc = changes[ci];
+			return cc.in_time + cc.tempo*(given_out_time-cc.out_time);
+		};
+
+		obj['flush'] = function(discard_output_seconds) {
 			f_ind = 0;	prev_out_len = 0;
 			syn_drift = 0.0; b_npeaks = [0,0];
 
@@ -88,8 +96,32 @@
 
 			for(var i=0;i<in_buffer.length;i++) in_buffer[i] = 0.0;
 			for(var i=0;i<out_buffer.length;i++) out_buffer[i] = 0.0;
+
+			// Scroll time cursor back by discard_output_seconds
+			if (discard_output_seconds) {
+
+				// Scroll back time in both coordinates
+				out_time = Math.max(0,out_time-discard_output_seconds);
+				in_time = obj['mapOutputToInputTime'](out_time);
+
+				// Clear the now-made-future tempo changes (if any)
+				var ci = changes.length-1;
+				while(out_time<=changes[ci].out_time && ci>=0) { changes.pop(); ci--; }
+
+				// Add a tempo change reflecting current state
+				changes.push({ 
+					in_time: in_time, out_time: out_time,
+					tempo: chosen_tempo
+				})
+			}
 		};
 
+		// Small utility function to calculate gain compensation
+		var compute_gain_comp = function(win,syn_len) {
+			var n = win.length / syn_len | 0, sum = 0.0;
+			for(var i=0;i<n;i++) sum += win[i * syn_len];
+			return GAIN_DEAMPLIFY / sum;
+		};
 		
 		obj['getTempo'] = function() { return chosen_tempo; };
 		obj['setTempo'] = function(tempo_ratio) {
@@ -103,16 +135,20 @@
 			gain_comp = compute_gain_comp(win,syn_len);
 			chosen_tempo = tempo_ratio;
 			//console.log("TEMPO CHANGE",tempo_ratio,"LENS",ana_len,syn_len,"GAIN",gain_comp);
+
+			// Handle book-keeping for time map
+			var lc = changes[changes.length-1];
+			if (lc.out_time == out_time) // no samples since last change
+				lc.tempo = tempo_ratio; // Just replace last change event
+			else //add new entry
+				changes.push({ 
+					in_time: in_time, out_time: out_time,
+					tempo: tempo_ratio
+				})
 		};
 
-		obj['flush'](); obj['setTempo'](chosen_tempo);
+		obj['flush'](0); obj['setTempo'](chosen_tempo);
 
-
-		// Should map time in output samples to that of input
-		obj['mapOutputToInputTime'] = function(time) {
-			// TODO
-			return time;
-		};
 
 		/**************************
 		* Small utility functions
@@ -265,7 +301,7 @@
 		var two_steps = function() {
 
 			// To better match the given ratio,
-	    	// occasionally tweak syn_len by 1
+	    	// occasionally tweak syn_len by 1 or 2
 			syn_drift += 2 * syn_drift_per_step;
 			var sdelta = syn_drift | 0;
 			syn_drift -= sdelta;
@@ -339,73 +375,89 @@
 			return prev_out_len;
 		}
 
+		// Two variables used for "process"
+		var inbuffer_contains = 0, unused_in_outbuf = 0;
+
 		// input: array of channels, each a float_array with unbounded amount of samples
 		// output: same format
-		obj['process'] = function(ar) {
-			// TODO!!
-			return ar;
+		obj['process'] = function(in_ar) {
+
+			// Mix channels together (if needed)
+			var mix = in_ar[0], in_len = in_ar[0].length; 
+			if (in_ar.length>1) {
+				mix = VH.float_array(in_ar[0].length);
+				var mult = 1.0/in_ar.length;
+				for(var c=0;c<in_ar.length;c++)
+					for(var i=0;i<in_len;i++)
+						mix[i] += mult*in_ar[c][i];
+			}
+
+			// Calculate output length
+			// Should underestimate, and by no more than 4, which can easily fit in the unused_in_outbuf
+			var consumable_samples = inbuffer_contains + in_len - (windowSize - ana_len);
+			var n_steps = 2*Math.floor(Math.max(0,consumable_samples)/(2*ana_len));
+			var out_len = unused_in_outbuf + syn_len*n_steps +
+							Math.floor(syn_drift+syn_drift_per_step*n_steps);
+
+			if (unused_in_outbuf>out_len) out_len = unused_in_outbuf;
+
+			// Allocate output
+			var outp = VH.float_array(out_len);
+
+			// Copy previously unused but ready values to output
+			VH.blit(out_buffer,0,outp,0,unused_in_outbuf); 
+			var ii = 0, oi = unused_in_outbuf;
+			
+			var left_over = 0, res_len = 0;
+			while(true) {
+
+				// Calculate how many new samples we need to call two_steps
+				var n_needed = windowSize + ana_len - inbuffer_contains;
+				
+				if (ii+n_needed>in_len) { // Not enough samples for next step
+					// Copy whats left to inbuffer and break out of the loop
+					VH.blit(mix,ii,in_buffer,inbuffer_contains,in_len-ii);
+					inbuffer_contains += in_len-ii; ii = in_len;
+					break;
+				}
+				else if (n_needed <= 0) // Already enough - can happen if tempo changed
+					inbuffer_contains -= 2 * ana_len; 
+				else { // Main case - we have enough
+					// Copy over this many samples from input
+					VH.blit(mix,ii,in_buffer,inbuffer_contains,n_needed);
+					ii += n_needed;					
+					inbuffer_contains = windowSize - ana_len;
+				}
+
+				// Invariant: left_over should be 0 here as it should break!
+
+				// Run the vocoder
+				res_len = two_steps();
+
+				// Move time pointers
+				in_time += 2*ana_len/sampleRate; out_time += res_len/sampleRate;
+
+				// Calculate how many samples are left over (usually 0)
+				left_over = oi + res_len - out_len; if(left_over < 0) left_over = 0;
+
+				// Copy fully ready samples out
+		        VH.blit(out_buffer,0,outp,oi,res_len-left_over);
+
+				oi += res_len;
+			}
+
+			// Copy left over samples to the beginning of out_buffer
+  			VH.blit(out_buffer,res_len-left_over,out_buffer,0,left_over);
+  			unused_in_outbuf = left_over;
+
+  			//////////////////////// DONE
+
+			// Clone the result to match the number of input channels
+			var out_ar = [];
+			for(var c=0;c<in_ar.length;c++) out_ar.push(outp);
+
+			return out_ar;
 		};
-
-		obj['stretch_filter'] = function(single_step_per_call) {
-			var inbuffer_contains = 0, unused_in_outbuf = 0;
-			var outbuf = VH.float_array(2 * max_step_len + 5);
-
-			var tail_end_calls = Math.ceil((windowSize - ana_len) / (2 * ana_len));
-
-			return function(filler) {
-				return function(outp,opos,outn) {
-
-					// It constantly slightly overfills, so samples keep building up
-	      			// This is used to occasionally release the steam
-					if(unused_in_outbuf >= outn) {
-						VH.blit(outbuf,0,outp,opos,outn);
-						VH.blit(outbuf,outn,outbuf,0,unused_in_outbuf);
-						return outn;
-					}
-
-					VH.blit(outbuf,0,outp,opos,unused_in_outbuf); // Copy full values to output
-					var oi = unused_in_outbuf;
-					
-					var left_over = 0, out_len = 0;
-					while(true) {
-
-						// Fetch new input samples
-						var n_needed = windowSize + ana_len - inbuffer_contains;
-						if(n_needed >= 0) {
-							var in_len = filler(in_buffer,inbuffer_contains,n_needed);
-							if(in_len < n_needed) {
-								if(tail_end_calls == 0) break;
-								else {
-									for(var i=in_len-ana_len;i<ana_len;i++)
-										in_buffer[windowSize + i] = 0.0;
-									tail_end_calls -= 1;
-								}
-							}
-							inbuffer_contains = windowSize - ana_len;
-						} else inbuffer_contains -= 2 * ana_len;
-
-						// Run the vocoder
-						out_len = two_steps();
-
-						// Calculate how many samples are left over (usually 0)
-						left_over = oi + out_len - outn; if(left_over < 0) left_over = 0;
-
-						// Copy fully ready samples out
-				        VH.blit(out_buffer,0,outp,opos+oi,out_len-left_over);
-
-						oi += out_len;
-						
-						if(left_over > 0 || single_step_per_call) break;
-					}
-
-					// Copy left over samples to outbuf
-	      			VH.blit(out_buffer,out_len-left_over,outbuf,0,left_over);
-	      			unused_in_outbuf = left_over;
-
-					return oi;
-				};
-			};
-		}
 
 		return obj;
 	};
