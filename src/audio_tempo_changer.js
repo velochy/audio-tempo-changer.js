@@ -10,7 +10,7 @@
 	var VH = require('./vector_helper.js');
 	var FFT = require('./fft.js');
 
-	var PhaseVocoder = function(opts) {
+	var AudioTempoChanger = function(opts) {
 
 		/**************************
 		* Fill in sensible defaults
@@ -463,5 +463,5 @@
 	};
 
 	/** @export */
-	module.exports = PhaseVocoder;
+	module.exports = AudioTempoChanger;
 })();

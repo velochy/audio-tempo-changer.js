@@ -13,25 +13,25 @@ module.exports = function(grunt) {
     webpack: {
       lib: {
         mode: 'production',
-        entry: './src/phase_vocoder.js',
+        entry: './src/audio_tempo_changer.js',
         devtool: "source-map",
         output: {
           path: path.resolve(__dirname, './dist'),
-          filename: "PhaseVocoder.js",
+          filename: "AudioTempoChanger.js",
           libraryTarget: 'umd',
-          library: 'PhaseVocoder'
+          library: 'AudioTempoChanger'
         },
         optimization: { minimize: false }
       },
       minlib: {
         mode: 'production',
-        entry: './src/phase_vocoder.js',
+        entry: './src/audio_tempo_changer.js',
         devtool: "source-map",
         output: {
           path: path.resolve(__dirname, './dist'),
-          filename: "PhaseVocoder.min.js",
+          filename: "AudioTempoChanger.min.js",
           libraryTarget: 'umd',
-          library: 'PhaseVocoder'
+          library: 'AudioTempoChanger'
         },
         optimization: {
           minimizer: [

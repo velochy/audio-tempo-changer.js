@@ -4,9 +4,9 @@
 	else if(typeof define === 'function' && define.amd)
 		define([], factory);
 	else if(typeof exports === 'object')
-		exports["PhaseVocoder"] = factory();
+		exports["AudioTempoChanger"] = factory();
 	else
-		root["PhaseVocoder"] = factory();
+		root["AudioTempoChanger"] = factory();
 })(window, function() {
 return /******/ (function(modules) { // webpackBootstrap
 /******/ 	// The module cache
@@ -130,7 +130,7 @@ module.exports = VH;
 	var VH = __webpack_require__(0);
 	var FFT = __webpack_require__(2);
 
-	var PhaseVocoder = function(opts) {
+	var AudioTempoChanger = function(opts) {
 
 		/**************************
 		* Fill in sensible defaults
@@ -583,7 +583,7 @@ module.exports = VH;
 	};
 
 	/** @export */
-	module.exports = PhaseVocoder;
+	module.exports = AudioTempoChanger;
 })();
 
 
@@ -771,4 +771,4 @@ module.exports = FFT;
 /***/ })
 /******/ ]);
 });
-//# sourceMappingURL=PhaseVocoder.js.map
+//# sourceMappingURL=AudioTempoChanger.js.map

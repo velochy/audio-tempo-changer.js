@@ -1,11 +1,11 @@
 {
-  "name": "phase-vocoder.js",
+  "name": "audio-tempo-changer.js",
   "version": "0.1.0",
-  "description": "Portable pure-JS implementation of a phase-vocoder for changing tempo of audio",
-  "main": "dist/PhaseVocoder.js",
+  "description": "Portable pure-JS implementation of a phase vocoder for changing audio tempo",
+  "main": "dist/AudioTempoChanger.js",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/velochy/phase-vocoder.js"
+    "url": "git+https://github.com/velochy/audio-tempo-changer.js"
   },
   "keywords": [
     "audio",
@@ -15,9 +15,9 @@
   "author": "Margus Niitsoo <velochy@gmail.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/velochy/phase-vocoder.js/issues"
+    "url": "https://github.com/velochy/audio-tempo-changer.js/issues"
   },
-  "homepage": "https://github.com/velochy/phase-vocoder.js#readme",
+  "homepage": "https://github.com/velochy/audio-tempo-changer.js#readme",
   "files": [
     "dist",
     "README.md",

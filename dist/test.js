@@ -118,7 +118,7 @@ module.exports = VH;
  * Copyright (c) 2015-2019 Margus Niitsoo
  */
 
- var PhaseVocoder = __webpack_require__(2);
+ var AudioTempoChanger = __webpack_require__(2);
  var VH = __webpack_require__(0);
 
 var SR = 22050;
@@ -228,7 +228,7 @@ var generator = chirpSignal(200.0,300.0,nsamples);
 //var filler = vibratoSignal(440.0,20.0,6.0,nsamples);
 
 var write_ind = 0;
-var changer = PhaseVocoder({ sampleRate: SR, numChannels: 1, wsizeLog: wsize_log, tempo: tempo_ratio });
+var changer = AudioTempoChanger({ sampleRate: SR, numChannels: 1, wsizeLog: wsize_log, tempo: tempo_ratio });
 var outlen = nsamples / tempo_ratio;
 var res = new Float32Array(outlen);
 while(true) {
@@ -276,7 +276,7 @@ link.click();*/
 	var VH = __webpack_require__(0);
 	var FFT = __webpack_require__(3);
 
-	var PhaseVocoder = function(opts) {
+	var AudioTempoChanger = function(opts) {
 
 		/**************************
 		* Fill in sensible defaults
@@ -729,7 +729,7 @@ link.click();*/
 	};
 
 	/** @export */
-	module.exports = PhaseVocoder;
+	module.exports = AudioTempoChanger;
 })();
 
 

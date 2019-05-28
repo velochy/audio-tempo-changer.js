@@ -6,7 +6,7 @@
  * Copyright (c) 2015-2019 Margus Niitsoo
  */
 
- var PhaseVocoder = require('./phase_vocoder.js');
+ var AudioTempoChanger = require('./audio_tempo_changer.js');
  var VH = require('./vector_helper.js');
 
 var SR = 22050;
@@ -116,7 +116,7 @@ var generator = chirpSignal(200.0,300.0,nsamples);
 //var filler = vibratoSignal(440.0,20.0,6.0,nsamples);
 
 var write_ind = 0;
-var changer = PhaseVocoder({ sampleRate: SR, numChannels: 1, wsizeLog: wsize_log, tempo: tempo_ratio });
+var changer = AudioTempoChanger({ sampleRate: SR, numChannels: 1, wsizeLog: wsize_log, tempo: tempo_ratio });
 var outlen = nsamples / tempo_ratio;
 var res = new Float32Array(outlen);
 while(true) {
