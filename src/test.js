@@ -10,7 +10,7 @@
  var VH = require('./vector_helper.js');
 
 var SR = 22050;
-var wsize_log = 11;
+var wsize_log = 10;
 var tempo_ratio = 0.5;
 var duration = 20;
 

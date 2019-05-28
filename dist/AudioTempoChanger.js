@@ -138,7 +138,7 @@ module.exports = VH;
 
 		opts = opts || {};
 		var sampleRate = opts.sampleRate || 44100;
-		var wsizeLog = opts.wsizeLog || 12; // 4096
+		var wsizeLog = opts.wsizeLog || 11; // 2048 - good for 44100 
 		var chosen_tempo = opts.tempo || 1.0;
 		var numChannels = opts.numChannels || 2;
 
@@ -196,6 +196,9 @@ module.exports = VH;
 		var f_ind = 0, prev_out_len = 0, gain_comp = 1.0;
 		var syn_drift = 0.0, syn_drift_per_step = 0.0;
 
+		// Two variables used for "process"
+		var inbuffer_contains = 0, unused_in_outbuf = 0;
+
 		var obj = { };
 
 		// Should map time in output to time in input
@@ -207,8 +210,8 @@ module.exports = VH;
 		};
 
 		obj['flush'] = function(discard_output_seconds) {
-			f_ind = 0;	prev_out_len = 0;
-			syn_drift = 0.0; b_npeaks = [0,0];
+			syn_drift = 0.0; b_npeaks = [0,0]; prev_out_len = 0;
+			unused_in_outbuf = 0; inbuffer_contains = 0;
 
 			for(var i=0;i<2;i++)
 				for(var k=0;k<hWS;k++)
@@ -495,21 +498,45 @@ module.exports = VH;
 			return prev_out_len;
 		}
 
-		// Two variables used for "process"
-		var inbuffer_contains = 0, unused_in_outbuf = 0;
-
 		// input: array of channels, each a float_array with unbounded amount of samples
 		// output: same format
 		obj['process'] = function(in_ar) {
 
+			var in_len = in_ar[0].length;
+
 			// Mix channels together (if needed)
-			var mix = in_ar[0], in_len = in_ar[0].length; 
+			var mix = in_ar[0]; 
 			if (in_ar.length>1) {
 				mix = VH.float_array(in_ar[0].length);
 				var mult = 1.0/in_ar.length;
 				for(var c=0;c<in_ar.length;c++)
 					for(var i=0;i<in_len;i++)
 						mix[i] += mult*in_ar[c][i];
+			}
+
+			// Handle the special case of no tempo change
+			if (chosen_tempo == 1.0) {
+
+				// Empty out_buffer followed by in_buffer, if they are not empty
+				if (unused_in_outbuf+inbuffer_contains>0) {
+					var n_len = unused_in_outbuf + inbuffer_contains + in_len;
+					var n_ar = [];
+					for(var c=0;c<in_ar.length;c++) { 
+						var buf = VH.float_array(n_len);
+						VH.blit(out_buffer,0,buf,0,unused_in_outbuf);
+						VH.blit(in_buffer,0,buf,unused_in_outbuf,inbuffer_contains);
+						VH.blit(in_ar[c],0,buf,unused_in_outbuf+inbuffer_contains,in_len);
+						n_ar.push(buf);
+					}
+					obj['flush'](0);
+					in_len = n_len; in_ar = n_ar;
+				}
+
+				// Move time pointers
+				in_time += in_len/sampleRate; out_time += in_len/sampleRate;
+
+				// Just return the same samples as were given as input
+				return in_ar;
 			}
 
 			// Calculate output length
