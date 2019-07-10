@@ -109,7 +109,7 @@
 
 				// Clear the now-made-future tempo changes (if any)
 				var ci = changes.length-1;
-				while(out_time<=changes[ci].out_time && ci>=0) { changes.pop(); ci--; }
+				while(ci > 0 && out_time <= changes[ci].out_time) { changes.pop(); ci--; }
 
 				// Add a tempo change reflecting current state
 				changes.push({ 
